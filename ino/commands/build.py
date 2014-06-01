@@ -1,6 +1,7 @@
 # -*- coding: utf-8; -*-
 
 import re
+import os
 import os.path
 import inspect
 import subprocess
@@ -249,7 +250,14 @@ class Build(Command):
     def scan_dependencies(self):
         self.e['deps'] = SpaceList()
 
-        lib_dirs = [self.e.arduino_core_dir] + list_subdirs(self.e.lib_dir) + list_subdirs(self.e.arduino_libraries_dir)
+        robot_ctrl = 'Robot_Control'
+        core_lib_names = os.listdir(self.e.arduino_libraries_dir)
+        core_lib_names.remove(robot_ctrl)
+        core_lib_names.append(robot_ctrl)
+
+        core_lib_names = [os.path.join(self.e.arduino_libraries_dir, c_lib) for c_lib in core_lib_names]
+
+        lib_dirs = [self.e.arduino_core_dir] + list_subdirs(self.e.lib_dir) + core_lib_names
 
         if self.e.sketchbook_lib_dir is not None:
             lib_dirs += list_subdirs(self.e.sketchbook_lib_dir)

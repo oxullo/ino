@@ -77,6 +77,10 @@ class Environment(dict):
         '/usr/local/share/arduino',
         '/usr/share/arduino',
     ]
+    arduino_sketchbook_dir_guesses = [
+        '~/Documents/Arduino',
+        '~/sketchbook'
+    ]
 
     if platform.system() == 'Darwin':
         arduino_dist_dir_guesses.insert(0, '/Applications/Arduino.app/Contents/Resources/Java')
@@ -123,7 +127,7 @@ class Environment(dict):
     def hex_path(self):
         return os.path.join(self.build_dir, self.hex_filename)
 
-    def _find(self, key, items, places, human_name, join, multi):
+    def _find(self, key, items, places, human_name, join, multi, warn_only=False):
         """
         Search for file-system entry with any name passed in `items` on
         all paths provided in `places`. Use `key` as a cache key.
@@ -134,7 +138,7 @@ class Environment(dict):
         Return first found match unless `multi` is True. In that case
         a list with all fount matches is returned.
 
-        Raise `Abort` if no matches were found.
+        Raise `Abort` if no matches were found and warn_only is False
         """
         if key in self:
             return self[key]
@@ -170,12 +174,16 @@ class Environment(dict):
             self[key] = results
             return results
 
-        print colorize('FAILED', 'red')
-        raise Abort("%s not found. Searched in following places: %s" %
-                    (human_name, ''.join(['\n  - ' + p for p in places])))
+        if warn_only:
+            self[key] = None
+            print colorize('FAILED (warn only)', 'yellow')
+        else:
+            print colorize('FAILED', 'red')
+            raise Abort("%s not found. Searched in following places: %s" %
+                        (human_name, ''.join(['\n  - ' + p for p in places])))
 
-    def find_dir(self, key, items, places, human_name=None, multi=False):
-        return self._find(key, items or ['.'], places, human_name, join=False, multi=multi)
+    def find_dir(self, key, items, places, human_name=None, multi=False, warn_only=False):
+        return self._find(key, items or ['.'], places, human_name, join=False, multi=multi, warn_only=warn_only)
 
     def find_file(self, key, items=None, places=None, human_name=None, multi=False):
         return self._find(key, items or [key], places, human_name, join=True, multi=multi)
@@ -194,6 +202,15 @@ class Environment(dict):
         places = self.arduino_dist_places(dirname_parts) + ['$PATH']
         return self.find_file(key, items, places, human_name, multi=multi)
 
+    def find_sketchbook_dir(self, key, dirname_parts, human_name=None):
+        sketchbook_path = self.arduino_ide_pref('sketchbook.path')
+        if sketchbook_path is None:
+            places = self.arduino_sketchbook_places(dirname_parts)
+        else:
+            places = [os.path.join(sketchbook_path, *dirname_parts)]
+
+        return self.find_dir(key, None, places, human_name=human_name, warn_only=True)
+
     def arduino_dist_places(self, dirname_parts):
         """
         For `dirname_parts` like [a, b, c] return list of
@@ -207,6 +224,33 @@ class Environment(dict):
         else:
             places = self.arduino_dist_dir_guesses
         return [os.path.join(p, *dirname_parts) for p in places]
+
+    def arduino_sketchbook_places(self, dirname_parts):
+        return [os.path.join(p, *dirname_parts) for p in self.arduino_sketchbook_dir_guesses]
+
+    def arduino_ide_pref(self, key):
+        """
+        Try to retrieve an entry from the preferences of the arduino IDE given its key
+        """
+
+        if platform.system() == 'Darwin':
+            prefs_file = os.path.expanduser('~/Library/Arduino/preferences.txt')
+        elif platform.system() == 'Linux':
+            prefs_file = os.path.expanduser('~/.arduino/preferences.txt')
+        else:
+            return None
+
+        if os.path.isfile(prefs_file):
+            fp = open(prefs_file)
+            prefs = fp.read().split('\n')
+            fp.close()
+
+            for line in prefs:
+                kv = line.split('=')
+                if len(kv) == 2 and kv[0] == key:
+                    return kv[1].strip()
+
+        return None
 
     def board_models(self):
         if 'board_models' in self:

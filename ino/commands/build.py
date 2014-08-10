@@ -133,6 +133,9 @@ class Build(Command):
         self.e.find_arduino_dir('arduino_libraries_dir', ['libraries'],
                                 human_name='Arduino standard libraries')
 
+        self.e.find_sketchbook_dir('sketchbook_lib_dir', ['libraries'],
+                                   human_name='Arduino sketchbook libraries')
+
         toolset = [
             ('make', args.make),
             ('cc', args.cc),
@@ -247,6 +250,10 @@ class Build(Command):
         self.e['deps'] = SpaceList()
 
         lib_dirs = [self.e.arduino_core_dir] + list_subdirs(self.e.lib_dir) + list_subdirs(self.e.arduino_libraries_dir)
+
+        if self.e.sketchbook_lib_dir is not None:
+            lib_dirs += list_subdirs(self.e.sketchbook_lib_dir)
+
         inc_flags = self.recursive_inc_lib_flags(lib_dirs)
 
         # If lib A depends on lib B it have to appear before B in final
